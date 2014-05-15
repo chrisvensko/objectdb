@@ -34,6 +34,20 @@ exports.create_temp_from_id = function(id) {
     + " WHERE object_id = '" + id + "'";
 };
 
+var build_where = function(col, val) {
+  var operator = '=';
+
+  if (val.indexOf('*') !== -1 || val.indexOf('.') !== -1) {
+    val = val.replace(/\*/g, '%').replace(/\./g, '_');
+    operator = 'LIKE';
+  } else if(val.indexOf('>') === 0) {
+    val = val.substr(1);
+    operator = '>';
+  }
+
+  return col + " " + operator + " '" + val + "'";
+};
+
 exports.create_temp_from_query = function(type, filters) {
   var where = [];
 
@@ -54,8 +68,8 @@ exports.create_temp_from_query = function(type, filters) {
     + " LEFT JOIN string_dim AS " + field_table + " ON " + pd_table + ".name_key = " + field_table + ".string_id"
     + " LEFT JOIN string_dim AS " + value_table + " ON " + pd_table + ".value_key = " + value_table + ".string_id";
 
-    where.push(field_table + ".string = '" + key + "'");
-    where.push(value_table + ".string = '" + val + "'");
+    where.push(build_where(field_table + '.string', key));
+    where.push(build_where(value_table + '.string', val));
   });
 
   sql += where.join(' AND ');
