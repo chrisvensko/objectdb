@@ -65,19 +65,26 @@ var getObjectDetails = function(err, res, req) {
 
       var fullUrl = req.protocol + '://' + req.get('host') + '/';
 
-      _.each(results, function(row) {
-        if(_.isEmpty(row)) {
-          return;
-        }
-        row.links = {};
-
+      var buildLinks = function(row) {
+        var links = {};
         _.each(row, function(val, col) {
           if (col == 'links' || col == 'object_id' || col == 'object_type') {
             return;
           }
-
-          row.links[col] = fullUrl + row['object_type'] + '?' + col + '=' + val;
+          links[col] = fullUrl + row['object_type'] + '/?' + col + '=' + val;
         });
+
+        return links;
+      };
+
+      _.each(results, function(row) {
+        if(_.isEmpty(row)) {
+          return;
+        }
+
+        if (req.links) {
+          row.links = buildLinks(row);
+        }
 
         row.url = fullUrl + 'object/' + row.object_id;
       });
@@ -114,12 +121,24 @@ app.get('/object/:id', function(req, res) {
 app.get('/:type', function(req, res) {
   clearTempTable();
 
+  var links = true;
+
+  if (req.query.hasOwnProperty('links')) {
+    links = req.query.links;
+    delete req.query.links;
+  };
   var query = sql.create_temp_from_query(req.params.type, req.query);
   db.query(query, function(err) {
     if (err) {
       console.log(err);
       console.log(query);
     }
+
+    if (links == 'false') {
+      links = false;
+    }
+
+    req.links = links;
     
     getObjectDetails(err, res, req);
   });
