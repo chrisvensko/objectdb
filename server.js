@@ -86,7 +86,7 @@ var getObjectDetails = function(err, res, req) {
           row.links = buildLinks(row);
         }
 
-        row.url = fullUrl + 'object/' + row.object_id;
+        row.object_url = fullUrl + 'object/' + row.object_id;
       });
 
       res.json({results:results});
@@ -121,7 +121,7 @@ app.get('/object/:id', function(req, res) {
 app.get('/:type', function(req, res) {
   clearTempTable();
 
-  var links = true;
+  var links = false;
 
   if (req.query.hasOwnProperty('links')) {
     links = req.query.links;
