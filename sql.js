@@ -1,7 +1,7 @@
 var _ = require('underscore');
 
 exports.drop_temp_table = function() {
-  return "DROP TEMPORARY TABLE matching_object_ids";
+  return "DROP TEMPORARY TABLE IF EXISTS matching_object_ids";
 };
 
 exports.get_matching_objects = function() {
