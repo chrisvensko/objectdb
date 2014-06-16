@@ -48,31 +48,77 @@ var build_where = function(col, val) {
   return col + " " + operator + " '" + val + "'";
 };
 
-exports.create_temp_from_query = function(type, filters) {
-  var where = [];
-
-  var sql = "CREATE TEMPORARY TABLE matching_object_ids"
-    + " SELECT object_id FROM objects AS O"
-    + " LEFT JOIN string_dim AS object_type ON O.type_key = object_type.string_id";
-
-  where.push(" WHERE object_type.string = '" + type + "'");
-
-  _.each(filters, function(val, key) {
+var joinField = function(key, val, SQL) {
+    SQL.fields[key] = true;
     var pb_table = '`pb' + key + '`';
     var pd_table = '`pd' + key + '`';
     var field_table = '`name' + key + '`';
     var value_table = '`value' + key + '`';
 
-    sql += " LEFT JOIN property_bridge AS " + pb_table + " ON O.object_id = " + pb_table + ".object_key"
-    + " LEFT JOIN property_dim AS " + pd_table + " ON " + pb_table + ".property_key = " + pd_table + ".property_id"
-    + " LEFT JOIN string_dim AS " + field_table + " ON " + pd_table + ".name_key = " + field_table + ".string_id"
-    + " LEFT JOIN string_dim AS " + value_table + " ON " + pd_table + ".value_key = " + value_table + ".string_id";
+    SQL.joins.push('LEFT JOIN property_bridge AS ' + pb_table + ' ON O.object_id = ' + pb_table + '.object_key');
+    SQL.joins.push('LEFT JOIN property_dim AS ' + pd_table + ' ON ' + pb_table + '.property_key = ' + pd_table + '.property_id');
+    SQL.joins.push('LEFT JOIN string_dim AS ' + field_table + ' ON ' + pd_table + '.name_key = ' + field_table + '.string_id');
+    SQL.joins.push('LEFT JOIN string_dim AS ' + value_table + ' ON ' + pd_table + '.value_key = ' + value_table + '.string_id');
 
-    where.push(build_where(field_table + '.string', key));
-    where.push(build_where(value_table + '.string', val));
+
+    SQL.where.push(build_where(field_table + '.string', key));
+
+    if (!_.isEmpty(val)) {
+      SQL.where.push(build_where(value_table + '.string', val));
+    }
+
+    return SQL;
+};
+
+var buildSort = function(sortString, SQL) {
+  var sortParts = sortString.split(',');
+  _.each(sortParts, function(val) {
+    // Split sort into col and dir
+    var segments = val.split(' ');
+    if (!SQL.fields[segments[0]]) {
+      SQL = joinField(segments[0], null, SQL);
+    }
+    var sort = '`value' + segments[0] + '`.string';
+
+    if (segments.length > 1) {
+      sort += ' ' + segments[1];
+    }
+    SQL.order_by.push(sort);
   });
 
-  sql += where.join(' AND ');
+  return SQL;
+};
 
+exports.create_temp_from_query = function(type, filters) {
+  var SQL = {
+    fields: {},
+    where: [],
+    joins: [],
+    order_by: []
+  };
+
+  var sql = "CREATE TEMPORARY TABLE matching_object_ids"
+    + " SELECT object_id FROM objects AS O"
+    + " LEFT JOIN string_dim AS object_type ON O.type_key = object_type.string_id";
+
+  SQL.where.push(" WHERE object_type.string = '" + type + "'");
+
+  _.each(filters, function(val, key) {
+    if(key.substr(0,1) == '_') {
+      return;
+    }
+    joinField(key, val, SQL);
+  });
+
+  if (!_.isEmpty(filters['_sort'])) {
+    SQL = buildSort(filters['_sort'], SQL);
+  }
+
+  sql += ' ' + SQL.joins.join(' ');
+  sql += SQL.where.join(' AND ');
+
+  if(!_.isEmpty(SQL.order_by)) {
+    sql += ' ORDER BY ' + SQL.order_by.join(', ');
+  }
   return sql;
 };
